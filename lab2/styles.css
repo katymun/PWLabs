@@ -1,0 +1,159 @@
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    color: #1E170F;
+    background-color: #f8f8f8;
+    line-height: 1.6;
+    margin: 0;
+  }
+  
+  header {
+    background: #1E170F;
+    padding: 1em 0;
+  }
+  
+  nav ul {
+    display: flex;
+    justify-content: center;
+  }
+  
+  nav ul li {
+    margin: 0 1em;
+  }
+  
+  nav ul li a {
+    color: #fff;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  
+  .section {
+    padding: 2em 1em;
+    text-align: center;
+  }
+  
+  .hero {
+    padding: 4em 1em;
+    background: url('images/environmental-impacts-of-geothermal-energy.jpg') no-repeat center center/cover;
+    color: #fff;
+    text-shadow: #24252a;
+  }
+
+  h1 {
+    font-size: 38px;
+  }
+
+  h2 {
+    font-size: 30px;
+  }
+
+  h3 {
+    font-size: 20px;
+  }
+
+  .hero p {
+    font-size: 20px;
+  }
+  
+  .cta-button {
+    display: inline-block;
+    margin-top: 1em;
+    padding: 0.75em 1.5em;
+    background: #1E170F;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 5px;
+  }
+  
+  .service-item {
+    padding: 5em 2em;
+    margin-top: 1em;
+    text-shadow: 0px 0px 3px #fff;
+    font-weight: bold;
+  }
+
+  .service-item p {
+    margin-top: 20px;
+  }
+
+  .heat-pumps {
+    background: url('images/heat-pump-update.jpg') no-repeat center center/cover;
+    border-radius: 5px;
+    color: #1E170F;
+    
+  }
+
+  .ventilation {
+    background: url('images/ventilation-grill-1024x651.jpg') no-repeat center center/cover;
+    border-radius: 5px;
+    text-shadow: #f8f8f8;
+  }
+
+  .conditioners {
+    background: url('images/Wall-Mounted-AC-Unit.jpg') no-repeat center center/cover;
+    border-radius: 5px;
+    text-shadow: #f8f8f8;
+  }
+
+  .about-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap; 
+    gap: 1em;
+    padding: 0;
+  }
+  
+  .about-text {
+    flex: 1;
+    min-width: 250px; 
+    text-align: left;
+  }
+  
+  .about-image {
+    flex: 1;
+    min-width: 250px;
+    text-align: right;
+  }
+  
+  .about-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 5px;
+  }
+  
+  form {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  form input, form textarea {
+    padding: 0.75em;
+    margin-bottom: 1em;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  
+  form button {
+    padding: 0.75em;
+    border: none;
+    background: #1E170F;
+    color: #fff;
+    font-size: 1em;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  footer {
+    background: #1E170F;
+    color: #fff;
+    text-align: center;
+    padding: 1em 0;
+  }
+
+  #contact-details {
+    font-size: 13px;
+  }
+  
