@@ -156,4 +156,32 @@ body {
   #contact-details {
     font-size: 13px;
   }
+
+  @media (max-width: 780px) {
+    body {
+      font-size: 16px;
+    }
+
+    header nav ul {
+      flex-direction: column;
+      gap: 0.5em;
+    }
+
+    .section {
+      padding: 2em 1em;
+    }
+
+    .about-content {
+      flex-direction: column;
+    }
+
+    .about-image,
+    .about-text {
+      text-align: center;
+    }
+  }
+
+  
+
+
   
