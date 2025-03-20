@@ -179,6 +179,14 @@ body {
     .about-text {
       text-align: center;
     }
+
+    .mobile-only {
+      display: block;
+    }
+  }
+
+  .mobile-only {
+    display: none;
   }
 
   
