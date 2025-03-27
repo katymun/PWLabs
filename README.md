@@ -10,6 +10,11 @@ The landing page is designed to show the services offered by Climatehnic. It inc
 - A contact section with a form 
 - A footer section with contact info (email and phone number).
 
+Lab 3 also includes:
+- Some responsive design adjustments for mobile devices.
+- A mobile-only section with special offers.
+- A mascot that appears on the page.
+
 ## Screenshots
 ![Climatehnic Landing Page Screenshot](lab2/images/page-screeshot.png)
 
