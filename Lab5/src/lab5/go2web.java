@@ -9,49 +9,76 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.net.URLDecoder;
 
 public class go2web {
     private static final int DEFAULT_HTTP_PORT = 80;
     private static final int DEFAULT_HTTPS_PORT = 443;
-    private static final String USER_AGENT = "go2web/1.0";
     private static Map<String, CachedResponse> cache = new HashMap<>();
 
     public static void main(String[] args) {
-        if (args.length == 0) {
-            printHelp();
+        if (args.length > 0) {
+            processArguments(args);
             return;
         }
 
-        try {
-            switch (args[0]) {
-                case "-u":
-                    if (args.length < 2) {
-                        System.out.println("Error: URL is required with -u option");
-                        printHelp();
-                        return;
-                    }
-                    fetchUrl(args[1]);
-                    break;
-                case "-s":
-                    if (args.length < 2) {
-                        System.out.println("Error: Search term is required with -s option");
-                        printHelp();
-                        return;
-                    }
+        Scanner scanner = new Scanner(System.in);
+        printHelp();
+        while (true) {
+            String input = scanner.nextLine().trim();
 
-                    StringBuilder searchTerm = new StringBuilder(args[1]);
-                    for (int i = 2; i < args.length; i++) {
-                        searchTerm.append(" ").append(args[i]);
-                    }
-                    searchTerm(searchTerm.toString());
-                    break;
-                case "-h":
-                    printHelp();
-                    break;
-                default:
-                    System.out.println("Unknown option: " + args[0]);
-                    printHelp();
-                    break;
+            if (input.isEmpty()) {
+                printHelp();
+                return;
+            }
+
+            String[] inputArgs = input.split("\\s+");
+            processArguments(inputArgs);
+        }
+    }
+
+    private static void processArguments(String[] args) {
+        System.out.println("Args: " + Arrays.toString(args));
+        try {
+            if (args[0].equals("go2web")) {
+                switch (args[1]) {
+                    case "-u":
+                        if (args.length < 3) {
+                            System.out.println("Error: URL is required with -u option");
+                            printHelp();
+                            return;
+                        }
+                        System.out.println("Fetching URL: " + args[1]);
+                        fetchUrl(args[2]);
+                        break;
+                    case "-s":
+                        if (args.length < 3) {
+                            System.out.println("Error: Search term is required with -s option");
+                            printHelp();
+                            return;
+                        }
+
+                        StringBuilder searchTerm = new StringBuilder(args[2]);
+                        if (args.length >= 4) {
+                            for (int i = 3; i < args.length; i++) {
+                                searchTerm.append(" ").append(args[i]);
+                            }
+                        }
+                        searchTerm(searchTerm.toString());
+                        break;
+                    case "-h":
+                        printHelp();
+                        break;
+                    case "-x":
+                        System.out.println("Good bye!");
+                        System.exit(0);
+                    default:
+                        System.out.println("Unknown option: " + args[1]);
+                        printHelp();
+                        break;
+                }
+            } else {
+                System.out.println("Unknown command: " + args[0]);
             }
         } catch (Exception ex) {
             System.out.println("Error: " + ex.getMessage());
@@ -60,32 +87,138 @@ public class go2web {
     }
 
     private static void searchTerm(String searchTerm) {
-        String encodedSearchTerm = URLEncoder.encode(searchTerm, StandardCharsets.UTF_8);
-        String url = "https://www.google.com/search?q=" + encodedSearchTerm;
-
-        URL parsedUrl = null;
         try {
-            parsedUrl = parseUrl(url);
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+            String encodedSearchTerm = URLEncoder.encode(searchTerm, StandardCharsets.UTF_8);
+
+            String url = "https://html.duckduckgo.com/html/?q=" + encodedSearchTerm;
+
+            URL parsedUrl = parseUrl(url);
+            String host = parsedUrl.getHost();
+            String path = parsedUrl.getPath() + "?q=" + encodedSearchTerm;
+
+            System.out.println("Connecting to " + host + "...");
+            String response = fetchHttpsUrl(host, path);
+
+            saveResponseToFile(response, "duckduckgo_response.html");
+//            System.out.println("Raw response saved to 'duckduckgo_response.html' for debugging");
+
+//            System.out.println("Response received, processing...");
+            HttpResponse httpResponse = parseHttpResponse(response);
+
+            // Check if we need to follow a redirect
+            if (httpResponse.statusCode >= 300 && httpResponse.statusCode < 400) {
+                String location = httpResponse.headers.get("Location");
+                if (location != null) {
+                    System.out.println("Received redirect to: " + location);
+                    URL redirectUrl = new URL(new URL(url), location);
+                    host = redirectUrl.getHost();
+                    path = redirectUrl.getPath();
+                    if (redirectUrl.getQuery() != null) {
+                        path += "?" + redirectUrl.getQuery();
+                    }
+
+                    System.out.println("Following redirect to " + host + path + "...");
+                    response = fetchHttpsUrl(host, path);
+                    saveResponseToFile(response, "duckduckgo_redirect_response.html");
+                    httpResponse = parseHttpResponse(response);
+                }
+            }
+
+//            System.out.println("Extracting search results...");
+            List<SearchResult> searchResults = extractDuckDuckGoSearchResults(httpResponse.body);
+
+            if (searchResults.isEmpty()) {
+//                System.out.println("No search results found. Trying alternative extraction method...");
+                searchResults = extractAlternativeDuckDuckGoResults(httpResponse.body);
+            }
+
+            if (searchResults.isEmpty()) {
+                System.out.println("No search results found. The search engine might be blocking automated requests.");
+                System.out.println("Check the saved HTML file to see the actual response.");
+                return;
+            }
+
+            System.out.println("\nSearch Results for: " + searchTerm);
+            System.out.println("------------------------------------");
+
+            int count = 0;
+            for (SearchResult result : searchResults) {
+                if (count >= 10) break;
+                System.out.println((count + 1) + ". " + result.title);
+                System.out.println("   URL: " + result.url);
+                System.out.println();
+                count++;
+            }
+        } catch (Exception e) {
+            System.out.println("Error searching: " + e.getMessage());
+            e.printStackTrace();
         }
-        String host = parsedUrl.getHost();
-        String path = parsedUrl.getPath() + "?q=" +  encodedSearchTerm;
+    }
 
-        String response = fetchHttpsUrl(host, path);
-
-        HttpResponse httpResponse = parseHttpResponse(response);
-
-        List<SearchResult> searchResults = extractSearchResults(httpResponse.body);
-
-        int count = 0;
-        for (SearchResult result : searchResults) {
-            if (count >= 10) break;
-            System.out.println((count + 1) + ". " + result.title);
-            System.out.println("   URL: " + result.url);
-            System.out.println();
-            count++;
+    private static void saveResponseToFile(String content, String filename) {
+        try (FileWriter writer = new FileWriter(filename)) {
+            writer.write(content);
+        } catch (IOException e) {
+            System.out.println("Error saving response to file: " + e.getMessage());
         }
+    }
+
+    private static List<SearchResult> extractDuckDuckGoSearchResults(String html) {
+        List<SearchResult> results = new ArrayList<>();
+
+        Pattern pattern = Pattern.compile("<a class=\"result__a\"[^>]*href=\"([^\"]+)\"[^>]*>(.*?)</a>", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(html);
+
+        while (matcher.find() && results.size() < 10) {
+            String url = matcher.group(1);
+            String title = stripHtmlTags(matcher.group(2));
+
+            if (url.startsWith("/l/?")) {
+                Pattern urlPattern = Pattern.compile("uddg=([^&]+)");
+                Matcher urlMatcher = urlPattern.matcher(url);
+                if (urlMatcher.find()) {
+                    try {
+                        url = URLDecoder.decode(urlMatcher.group(1), StandardCharsets.UTF_8.name());
+                    } catch (UnsupportedEncodingException e) {
+                    }
+                }
+            }
+
+            if (!title.isEmpty() && !url.isEmpty()) {
+                results.add(new SearchResult(title, url));
+            }
+        }
+
+        return results;
+    }
+
+    private static List<SearchResult> extractAlternativeDuckDuckGoResults(String html) {
+        List<SearchResult> results = new ArrayList<>();
+
+        Pattern pattern = Pattern.compile("<a\\s+[^>]*?class=\"[^\"]*?(?:result|link)[^\"]*?\"[^>]*?href=\"([^\"]+)\"[^>]*?>(.*?)</a>", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(html);
+
+        while (matcher.find() && results.size() < 20) {
+            String url = matcher.group(1);
+            String title = stripHtmlTags(matcher.group(2)).trim();
+
+            if (!url.contains("javascript:") && !url.contains("#") && !title.isEmpty() && title.length() > 5) {
+                if (url.startsWith("/l/?")) {
+                    Pattern uddgPattern = Pattern.compile("uddg=([^&]+)");
+                    Matcher uddgMatcher = uddgPattern.matcher(url);
+                    if (uddgMatcher.find()) {
+                        try {
+                            url = URLDecoder.decode(uddgMatcher.group(1), StandardCharsets.UTF_8.name());
+                        } catch (Exception e) {
+                        }
+                    }
+                }
+
+                results.add(new SearchResult(title, url));
+            }
+        }
+
+        return results;
     }
 
     private static void printHelp() {
@@ -94,6 +227,7 @@ public class go2web {
         System.out.println("\tgo2web -u <URL>          #make an HTTP request to the specified URL and print the response");
         System.out.println("\tgo2web -s <search-term>  #make an HTTP request to search the term using your favorite search engine and print top 10 results");
         System.out.println("\tgo2web -h                #show this help");
+        System.out.println("\tgo2web -x                #exit program");
     }
 
     private static void fetchUrl(String url) throws Exception {
@@ -102,33 +236,60 @@ public class go2web {
             System.out.println(cache.get(url).getContent());
             return;
         }
+
         URL parsedUrl = parseUrl(url);
         String host = parsedUrl.getHost();
-        String path = parsedUrl.getPath().isEmpty() ? "/" :  parsedUrl.getPath();
+        String path = parsedUrl.getPath().isEmpty() ? "/" : parsedUrl.getPath();
         String query = parsedUrl.getQuery();
         if (query != null) {
             path += "?" + query;
         }
-        
+
+        System.out.println("Connecting to " + host + "...");
         String response;
         if (parsedUrl.getProtocol().equals("https")) {
             response = fetchHttpsUrl(host, path);
         } else {
             response = fetchHttpUrl(host, path);
         }
-        
+
+        System.out.println("Response received, processing...");
         HttpResponse httpResponse = parseHttpResponse(response);
+
+        if (httpResponse.statusCode >= 300 && httpResponse.statusCode < 400) {
+            String location = httpResponse.headers.get("Location");
+            if (location != null) {
+                System.out.println("Redirecting to: " + location);
+                fetchUrl(location);
+                return;
+            }
+        }
+
+        String contentType = httpResponse.headers.get("Content-Type");
+        String processedContent;
+
+        if (contentType != null && contentType.contains("application/json")) {
+            processedContent = prettyPrintJson(httpResponse.body);
+        } else {
+            processedContent = stripHtmlTags(httpResponse.body);
+        }
+
+        cacheResponse(url, processedContent, httpResponse.headers);
+
+        System.out.println("\nResponse from " + url + ":");
+        System.out.println("------------------------------------");
+        System.out.println(processedContent);
     }
 
     private static HttpResponse parseHttpResponse(String response) {
         HttpResponse httpResponse = new HttpResponse();
-
+        String headersStr;
         int headerBodySeparator = response.indexOf("\r\n\r\n");
         if (headerBodySeparator == -1) {
             httpResponse.body = "";
-            String headersStr = response;
+            headersStr = response;
         } else {
-            String headersStr = response.substring(0, headerBodySeparator);
+            headersStr = response.substring(0, headerBodySeparator);
             httpResponse.body = response.substring(headerBodySeparator + 4);
 
             if (httpResponse.body.contains("\r\n")) {
@@ -164,9 +325,9 @@ public class go2web {
                 for (int i = 1; i < headers.length; i++) {
                     int colonPos = headers[i].indexOf(":");
                     if (colonPos > 0) {
-                        String nume = headers[i].substring(0, colonPos).trim();
+                        String name = headers[i].substring(0, colonPos).trim();
                         String value = headers[i].substring(colonPos + 1).trim();
-                        httpResponse.headers.put(nume, value);
+                        httpResponse.headers.put(name, value);
                     }
                 }
             }
@@ -177,10 +338,10 @@ public class go2web {
     private static String fetchHttpUrl(String host, String path) {
         try (Socket socket = new Socket(host, DEFAULT_HTTP_PORT)) {
             String request = "GET " + path + " HTTP/1.1\r\n" +
-                             "Host: " + host + "\r\n" +
-                             "User-Agent: " + USER_AGENT + "\r\n" +
-                             "Accept: text/html,application/json\r\n" +
-                             "Connection: close\r\n\r\n";
+                    "Host: " + host + "\r\n" +
+                    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3\r\n" +
+                    "Accept: text/html,application/json\r\n" +
+                    "Connection: close\r\n\r\n";
 
             PrintWriter out = new PrintWriter(socket.getOutputStream());
             out.print(request);
@@ -196,19 +357,19 @@ public class go2web {
 
             return response.toString(StandardCharsets.UTF_8.name());
         } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Unknown host: " + host, e);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("IO error when connecting to " + host + ": " + e.getMessage(), e);
         }
     }
 
     private static String fetchHttpsUrl(String host, String path) {
         try (SSLSocket socket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(host, DEFAULT_HTTPS_PORT)) {
             String request = "GET " + path + " HTTP/1.1\r\n" +
-                             "Host: " + host + "\r\n" +
-                             "User-Agent: " + USER_AGENT + "\r\n" +
-                             "Accept: text/html,application/json\r\n" +
-                             "Connection: close\r\n\r\n";
+                    "Host: " + host + "\r\n" +
+                    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3\r\n" +
+                    "Accept: text/html,application/json\r\n" +
+                    "Connection: close\r\n\r\n";
             PrintWriter out = new PrintWriter(socket.getOutputStream());
             out.print(request);
             out.flush();
@@ -223,7 +384,7 @@ public class go2web {
 
             return response.toString(StandardCharsets.UTF_8.name());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("IO error when connecting to " + host + " via HTTPS: " + e.getMessage(), e);
         }
     }
 
@@ -235,21 +396,27 @@ public class go2web {
     }
 
     private static String stripHtmlTags(String html) {
-        return html.replaceAll("<[^>]*>", "")
-                .replaceAll("&nbsp;", " ")
+        if (html == null || html.isEmpty()) {
+            return "";
+        }
+        String htmlTagPattern = "<[^>]*>";
+
+        String result = html.replaceAll(htmlTagPattern, "");
+
+        result = result.replaceAll("&amp;", "&")
                 .replaceAll("&lt;", "<")
                 .replaceAll("&gt;", ">")
-                .replaceAll("&amp;", "&")
                 .replaceAll("&quot;", "\"")
-                .replaceAll("\\s+", " ")
-                .trim();
+                .replaceAll("&nbsp;", " ")
+                .replaceAll("&#39;", "'");
+        result = result.trim();
+        return result;
     }
-
     private static void cacheResponse(String url, String content, Map<String, String> headers) {
         String cacheControl = headers.get("Cache-Control");
         String expires = headers.get("Expires");
 
-        long expirationTime = System.currentTimeMillis() + 3600 * 1000;
+        long expirationTime = System.currentTimeMillis() + 3600 * 1000; // Default: 1 hour
 
         if (cacheControl != null && cacheControl.contains("max-age=")) {
             try {
@@ -260,8 +427,11 @@ public class go2web {
                     expirationTime = System.currentTimeMillis() + maxAge * 1000;
                 }
             } catch (Exception e) {
+
             }
         }
+
+        cache.put(url, new CachedResponse(content, expirationTime));
     }
 
     private static List<SearchResult> extractSearchResults(String html) {
