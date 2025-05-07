@@ -1,7 +1,0 @@
-#!/bin/bash
-
-# Get the directory where this script is located
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-
-# Run the Java application with the given arguments
-java -cp "$DIR" go2web "$@"
